@@ -1,0 +1,633 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Zulu Chime</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;600;800&family=Chivo+Mono:wght@300;400;600&display=swap">
+<style>
+/* Layout: one column with the clock, sound button and volume. */
+:root {
+  --bg: #E8EEF0;
+  --surface: #F6F9FA;
+  --surface-2: #DCE5E8;
+  --line: #C3D0D5;
+  --fg: #10252E;
+  --muted: #566B74;
+  --accent: #1B4FCF;
+  --accent-fg: #FFFFFF;
+  --tick: #A9B9BF;
+  --live: #0E8A5F;
+  --warn: #A64B06;
+  --font-display: 'Bricolage Grotesque', 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: 'Chivo Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0C1A21;
+    --surface: #122630;
+    --surface-2: #1A3340;
+    --line: #27414E;
+    --fg: #E4EEF1;
+    --muted: #8DA4AE;
+    --accent: #7EA3FF;
+    --accent-fg: #0C1A21;
+    --tick: #35525F;
+    --live: #4CD3A0;
+    --warn: #F0B35A;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0C1A21;
+  --surface: #122630;
+  --surface-2: #1A3340;
+  --line: #27414E;
+  --fg: #E4EEF1;
+  --muted: #8DA4AE;
+  --accent: #7EA3FF;
+  --accent-fg: #0C1A21;
+  --tick: #35525F;
+  --live: #4CD3A0;
+  --warn: #F0B35A;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-display);
+  font-size: 16px;
+  line-height: 1.5;
+  padding-block: 28px 44px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap { max-width: 980px; margin: 0 auto; }
+h1 {
+  margin: 0;
+  font-size: clamp(1.6rem, 4.5vw, 2.1rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+.lede { margin: 8px 0 0; color: var(--muted); max-width: 56ch; }
+.eyebrow {
+  margin: 0 0 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.grid {
+  display: grid;
+  gap: 32px 56px;
+  margin-top: 32px;
+  align-items: start;
+  grid-template-columns: minmax(0, 1fr);
+}
+.main { min-width: 0; display: grid; gap: 26px; }
+@media (max-width: 780px) {
+  .grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Clock */
+.digits {
+  font-family: var(--font-mono);
+  font-weight: 300;
+  font-size: clamp(2.6rem, 11.5vw, 5.6rem);
+  letter-spacing: -0.03em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.digits .sec { color: var(--accent); font-weight: 400; }
+.digits .z { margin-left: 0.14em; font-size: 0.32em; font-weight: 600; letter-spacing: 0; color: var(--muted); }
+.ruler {
+  display: grid;
+  grid-template-columns: repeat(60, 1fr);
+  gap: 2px;
+  align-items: end;
+  height: 24px;
+  margin-top: 18px;
+}
+.ruler span { height: 9px; background: var(--tick); border-radius: 1px; }
+.ruler span.major { height: 16px; }
+.ruler span.on { background: var(--muted); }
+.ruler span.now { background: var(--accent); height: 24px; }
+.ruler-labels {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 4px;
+  width: calc(100% - 1.6%);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--muted);
+}
+.next {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 1rem;
+  font-variant-numeric: tabular-nums;
+}
+.next span { color: var(--muted); }
+
+/* Controls */
+.controls { display: grid; gap: 14px; max-width: 420px; }
+.note { margin: 0; font-size: 0.86rem; color: var(--muted); }
+.note.warn { color: var(--warn); }
+.btn {
+  min-height: 48px;
+  padding: 8px 18px;
+  font: inherit;
+  font-weight: 600;
+  color: var(--accent-fg);
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  cursor: pointer;
+}
+.btn.on {
+  color: var(--fg);
+  background: transparent;
+  border-color: var(--live);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+.btn.on::before { content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--live); }
+.btn.ghost { color: var(--fg); background: var(--surface-2); border-color: var(--line); }
+.btn.alt { color: var(--accent); background: transparent; border-color: var(--accent); }
+.btn:disabled { opacity: 0.55; cursor: default; }
+.banner { margin: 0; padding: 10px 12px; font-size: 0.9rem; color: var(--warn); border: 1px solid var(--warn); border-radius: 6px; }
+input[type="password"] {
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 12px;
+  font: inherit;
+  font-family: var(--font-mono);
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+input[type="password"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.host { margin-top: 44px; padding-top: 18px; border-top: 1px solid var(--line); max-width: 420px; display: grid; gap: 14px; }
+.host [hidden] { display: none !important; }
+.linkbtn {
+  justify-self: start;
+  min-height: 36px;
+  padding: 6px 0;
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: var(--muted);
+  background: none;
+  border: 0;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.linkbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.hostbody, .codeform, .hostpanel { display: grid; gap: 12px; }
+.codeform label { font-size: 0.9rem; font-weight: 600; }
+.addrow { display: flex; gap: 8px; }
+.addrow input { flex: 1; min-width: 0; }
+.err { margin: 0; min-height: 1.2em; font-size: 0.84rem; color: var(--warn); }
+.state { display: flex; align-items: center; gap: 10px; margin: 0; font-weight: 600; }
+.state::before { content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--live); }
+.state.off::before { background: var(--warn); }
+.hostbtns { display: flex; flex-wrap: wrap; gap: 10px; }
+.btn:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.field { display: grid; gap: 6px; }
+.field label { display: flex; justify-content: space-between; gap: 12px; font-size: 0.9rem; font-weight: 600; }
+.field output { font-family: var(--font-mono); font-weight: 400; color: var(--muted); }
+input[type="range"] { width: 100%; min-height: 32px; accent-color: var(--accent); }
+
+</style>
+<style>
+:root { color-scheme: light; padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+body { margin: 0; }
+[hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Zulu Chime</h1>
+    <p class="lede">A chime at the top of every UTC minute. Everyone with this page open hears it at the same moment.</p>
+  </header>
+
+  <div class="grid">
+    <main class="main">
+      <section aria-label="Current UTC time">
+        <p class="eyebrow">Coordinated Universal Time</p>
+        <div class="digits" role="timer" aria-label="Current UTC time"><span id="hm">00:00:</span><span id="ss" class="sec">00</span><span class="z">Z</span></div>
+        <div class="ruler" id="ruler" aria-hidden="true"></div>
+        <div class="ruler-labels" aria-hidden="true"><span>:00</span><span>:15</span><span>:30</span><span>:45</span></div>
+      </section>
+
+      <section class="controls" aria-label="Sound">
+        <p id="mutedBanner" class="banner" role="status" hidden>The host has turned sounds off for everyone. Chimes will return when they turn them back on.</p>
+        <p class="next" id="next">Next chime in <span id="nextSec">--</span> s</p>
+        <button id="power" class="btn" type="button">Turn sound on</button>
+        <p id="powerNote" class="note" aria-live="polite"></p>
+        <button id="play" class="btn ghost" type="button">Play here</button>
+        <button id="shout" class="btn alt" type="button" hidden>Play for everyone</button>
+        <p id="shareNote" class="note" aria-live="polite" hidden></p>
+        <div class="field">
+          <label for="vol">Volume <output id="volOut" for="vol">70</output></label>
+          <input id="vol" type="range" min="0" max="100" step="1" value="70">
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <section class="host" aria-label="Host controls">
+    <button id="hostToggle" class="linkbtn" type="button" aria-expanded="false" aria-controls="hostBody">Host controls</button>
+    <div id="hostBody" class="hostbody" hidden>
+      <form id="codeForm" class="codeform" novalidate>
+        <label for="codeIn">Host code</label>
+        <div class="addrow">
+          <input id="codeIn" type="password" autocomplete="off" maxlength="64">
+          <button id="codeBtn" class="btn" type="submit">Unlock</button>
+        </div>
+        <p id="codeErr" class="err" role="alert"></p>
+      </form>
+      <div id="hostPanel" class="hostpanel" hidden>
+        <p id="hostState" class="state">Sounds are on for everyone</p>
+        <div class="hostbtns">
+          <button id="hostOn" class="btn alt" type="button">Turn sounds on</button>
+          <button id="hostOff" class="btn ghost" type="button">Turn sounds off</button>
+        </div>
+        <p id="hostNote" class="note"></p>
+        <button id="lockBtn" class="linkbtn" type="button">Lock</button>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script src="https://cdn.ably.com/lib/ably.min-2.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  /* Shared button: paste your restricted Ably key between the quotes. Leave it empty to hide the button. */
+  var ABLY_KEY = '';
+  var ABLY_CHANNEL = 'zulu-chime';
+  var CONTROL_CHANNEL = 'zulu-chime-control';
+  /* Host code that unlocks the on/off controls. Change it here. */
+  var HOST_CODE = '123';
+  var soundsOn = true;
+
+  var STORE_KEY = 'zulu-chime-volume';
+  function pad(n) { return (n < 10 ? '0' : '') + n; }
+  function $(id) { return document.getElementById(id); }
+
+  var volume = 70;
+  try {
+    var saved = parseInt(localStorage.getItem(STORE_KEY), 10);
+    if (saved >= 0 && saved <= 100) volume = saved;
+  } catch (e) {}
+
+  /* ---------- audio ---------- */
+  var ctx = null, master = null, armed = false, armedAt = 0;
+  var scheduled = {};
+
+  function applyVolume() {
+    if (master) master.gain.value = soundsOn ? Math.pow(volume / 100, 2) * 0.9 : 0;
+  }
+  function ensureCtx() {
+    if (ctx) return ctx;
+    var AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return null;
+    ctx = new AC();
+    master = ctx.createGain();
+    var comp = ctx.createDynamicsCompressor();
+    master.connect(comp);
+    comp.connect(ctx.destination);
+    applyVolume();
+    return ctx;
+  }
+  function tone(bus, when, freq, peak, decay) {
+    var o = ctx.createOscillator();
+    var g = ctx.createGain();
+    o.type = 'sine';
+    o.frequency.value = freq;
+    g.gain.setValueAtTime(0.0001, when);
+    g.gain.linearRampToValueAtTime(peak, when + 0.006);
+    g.gain.exponentialRampToValueAtTime(0.0001, when + decay);
+    o.connect(g);
+    g.connect(bus);
+    o.start(when);
+    o.stop(when + decay + 0.05);
+  }
+  function chime(bus, when) {
+    var ratios = [1, 1.5, 2.0, 3.01];
+    var gains = [0.4, 0.22, 0.14, 0.07];
+    var decays = [1.8, 1.4, 1.1, 0.6];
+    for (var i = 0; i < ratios.length; i++) tone(bus, when, 880 * ratios[i], gains[i], decays[i]);
+  }
+
+  /* Schedule the next minute boundaries on the audio clock, so a throttled
+     timer in a background tab still chimes on time. */
+  function scheduleAhead(now) {
+    var first = Math.ceil(now / 60000) * 60000;
+    for (var t = first; t <= now + 75000; t += 60000) {
+      if (t < armedAt || scheduled[t]) continue;
+      var bus = ctx.createGain();
+      bus.connect(master);
+      chime(bus, ctx.currentTime + (t - now) / 1000);
+      scheduled[t] = bus;
+    }
+    Object.keys(scheduled).forEach(function (k) {
+      if (+k < now - 5000) delete scheduled[k];
+    });
+  }
+  function cancelAll() {
+    Object.keys(scheduled).forEach(function (k) {
+      try { scheduled[k].disconnect(); } catch (e) {}
+      delete scheduled[k];
+    });
+  }
+
+  /* ---------- screen wake lock ---------- */
+  var wakeLock = null;
+  function holdScreen() {
+    if (!('wakeLock' in navigator) || wakeLock || document.hidden || !armed) return;
+    navigator.wakeLock.request('screen').then(function (l) {
+      wakeLock = l;
+      l.addEventListener('release', function () { wakeLock = null; });
+    }).catch(function () {});
+  }
+  function releaseScreen() {
+    if (wakeLock) { wakeLock.release().catch(function () {}); wakeLock = null; }
+  }
+
+  /* ---------- UI ---------- */
+  var hm = $('hm'), ss = $('ss'), ruler = $('ruler'), nextSec = $('nextSec');
+  var power = $('power'), note = $('powerNote'), vol = $('vol'), volOut = $('volOut');
+
+  var ticks = [];
+  for (var i = 0; i < 60; i++) {
+    var sp = document.createElement('span');
+    if (i % 5 === 0) sp.className = 'major';
+    ruler.appendChild(sp);
+    ticks.push(sp);
+  }
+
+  var lastSec = -1;
+  function renderClock(now) {
+    var s = Math.floor(now / 1000);
+    if (s === lastSec) return;
+    lastSec = s;
+    var d = new Date(s * 1000);
+    var sec = d.getUTCSeconds();
+    hm.textContent = pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes()) + ':';
+    ss.textContent = pad(sec);
+    for (var i = 0; i < 60; i++) {
+      ticks[i].className = (i % 5 === 0 ? 'major' : '') + (i < sec ? ' on' : '') + (i === sec ? ' now' : '');
+    }
+    nextSec.textContent = String(60 - sec);
+  }
+
+  function renderPower() {
+    var running = armed && ctx && ctx.state === 'running';
+    note.className = 'note';
+    if (!armed) {
+      power.textContent = 'Turn sound on';
+      power.className = 'btn';
+      note.textContent = 'Sound is off. Browsers allow audio only after a tap, so tap this each time you open the page.';
+      if (!(window.AudioContext || window.webkitAudioContext)) {
+        note.textContent = 'This browser does not support web audio, so the chime cannot play here.';
+        note.className = 'note warn';
+      }
+    } else if (!running) {
+      power.textContent = 'Resume sound';
+      power.className = 'btn';
+      note.textContent = 'The browser paused audio. Tap to resume the chime.';
+      note.className = 'note warn';
+    } else {
+      power.textContent = 'Sound on · tap to turn off';
+      power.className = 'btn on';
+      note.textContent = 'Chiming every minute. Keep this tab open; the screen stays awake while sound is on.';
+    }
+  }
+
+  power.addEventListener('click', function () {
+    try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) {}
+    var c = ensureCtx();
+    if (!c) { renderPower(); return; }
+    if (armed && c.state === 'running') {
+      armed = false;
+      cancelAll();
+      releaseScreen();
+      renderPower();
+      return;
+    }
+    var p = c.resume ? c.resume() : null;
+    try {
+      var b = c.createBuffer(1, 1, 22050), src = c.createBufferSource();
+      src.buffer = b;
+      src.connect(c.destination);
+      src.start(0);
+    } catch (e) {}
+    if (!armed) { armed = true; armedAt = Date.now(); }
+    var bus = c.createGain();
+    bus.connect(master);
+    tone(bus, c.currentTime + 0.02, 880, 0.25, 0.18);
+    holdScreen();
+    if (p && p.then) p.then(renderPower, renderPower);
+    renderPower();
+  });
+
+  $('play').addEventListener('click', function () {
+    try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) {}
+    var c = ensureCtx();
+    if (!c) { renderPower(); return; }
+    if (c.resume) c.resume();
+    var bus = c.createGain();
+    bus.connect(master);
+    chime(bus, c.currentTime + 0.03);
+  });
+
+  vol.value = String(volume);
+  volOut.textContent = String(volume);
+  vol.addEventListener('input', function () {
+    volume = parseInt(vol.value, 10) || 0;
+    volOut.textContent = String(volume);
+    applyVolume();
+    try { localStorage.setItem(STORE_KEY, String(volume)); } catch (e) {}
+  });
+
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) return;
+    holdScreen();
+    if (armed && ctx && ctx.state !== 'running' && ctx.resume) ctx.resume().then(renderPower, renderPower);
+    renderPower();
+  });
+
+  var lastState = '';
+  function tick() {
+    var now = Date.now();
+    renderClock(now);
+    if (armed && ctx && ctx.state === 'running' && soundsOn) scheduleAhead(now);
+    var state = armed ? (ctx ? ctx.state : 'none') : 'off';
+    if (state !== lastState) { lastState = state; renderPower(); }
+  }
+
+  /* ---------- shared button ---------- */
+  var shout = $('shout'), shareNote = $('shareNote');
+  var shareLive = false, cooling = false, lastShared = 0, seen = {}, seenCount = 0;
+
+  function setShare(text, warn) {
+    shareNote.hidden = false;
+    shareNote.textContent = text;
+    shareNote.className = 'note' + (warn ? ' warn' : '');
+  }
+  function syncShout() { shout.disabled = !shareLive || cooling || !soundsOn; }
+  function unlock() {
+    try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) {}
+    var c = ensureCtx();
+    if (c && c.resume) c.resume();
+    return c;
+  }
+  function onShared(msg) {
+    if (!soundsOn) return;
+    var d = msg && msg.data;
+    if (!d || typeof d.id !== 'string') return;
+    var k = 'k' + d.id;
+    if (seen[k]) return;
+    seen[k] = true;
+    if (++seenCount > 50) { seen = {}; seenCount = 0; }
+    var now = Date.now();
+    if (now - lastShared < 1000) return;
+    lastShared = now;
+    var delay = typeof d.at === 'number' ? d.at - now : 0;
+    if (delay < 0 || delay > 5000) delay = 0;
+    if (ctx && ctx.state === 'running') {
+      var bus = ctx.createGain();
+      bus.connect(master);
+      chime(bus, ctx.currentTime + delay / 1000 + 0.02);
+      setShare('Shared chime at ' + new Date(now + delay).toISOString().slice(11, 19) + 'Z.');
+    } else {
+      setShare('Someone pressed the shared button. Tap "Turn sound on" to hear the next one.', true);
+    }
+  }
+  function connectShared() {
+    if (!ABLY_KEY) return;
+    if (typeof Ably === 'undefined') {
+      shareNote.hidden = false;
+      setShare('The shared button could not load.', true);
+      return;
+    }
+    shout.hidden = false;
+    syncShout();
+    setShare('Connecting the shared button\u2026');
+    try {
+      var client = new Ably.Realtime({ key: ABLY_KEY });
+      var channel = client.channels.get(ABLY_CHANNEL);
+      channel.subscribe('chime', onShared);
+      controlChannel = client.channels.get(CONTROL_CHANNEL, { params: { rewind: '1' } });
+      controlChannel.subscribe('sounds', onControl);
+      client.connection.on(function (change) {
+        var s = change.current;
+        shareLive = s === 'connected';
+        if (shareLive) setShare('Shared button connected. Everyone with this page open will hear it.');
+        else if (s === 'failed') setShare('The shared button could not connect. Check the Ably key.', true);
+        else if (s === 'disconnected' || s === 'suspended') setShare('The shared button is offline. Retrying\u2026', true);
+        else setShare('Connecting the shared button\u2026');
+        syncShout();
+        syncHost();
+      });
+      shout.addEventListener('click', function () {
+        var c = unlock();
+        if (!c) { renderPower(); return; }
+        cooling = true;
+        syncShout();
+        setTimeout(function () { cooling = false; syncShout(); }, 3000);
+        var p = channel.publish('chime', {
+          id: Math.random().toString(36).slice(2) + Date.now().toString(36),
+          at: Date.now() + 1500
+        });
+        if (p && p.catch) p.catch(function () { setShare('Could not send. Check your connection and try again.', true); });
+      });
+    } catch (e) {
+      setShare('The shared button could not start.', true);
+    }
+  }
+
+  /* ---------- host controls ---------- */
+  var mutedBanner = $('mutedBanner');
+  var hostToggle = $('hostToggle'), hostBody = $('hostBody'), codeForm = $('codeForm'), codeIn = $('codeIn'), codeErr = $('codeErr');
+  var hostPanel = $('hostPanel'), hostState = $('hostState'), hostNote = $('hostNote');
+  var hostOn = $('hostOn'), hostOff = $('hostOff'), lockBtn = $('lockBtn');
+  var controlChannel = null;
+
+  function applySoundsState() {
+    $('play').disabled = !soundsOn;
+    mutedBanner.hidden = soundsOn;
+    applyVolume();
+    syncShout();
+    hostState.textContent = soundsOn ? 'Sounds are on for everyone' : 'Sounds are off for everyone';
+    hostState.className = 'state' + (soundsOn ? '' : ' off');
+  }
+  function syncHost() {
+    var ready = shareLive && !!controlChannel;
+    hostOn.disabled = !ready;
+    hostOff.disabled = !ready;
+    if (ready) hostNote.textContent = 'Changes reach everyone with the page open.';
+    else if (ABLY_KEY) hostNote.textContent = 'Connecting\u2026';
+    else hostNote.textContent = 'Not connected. Add your Ably key to send commands.';
+  }
+  function onControl(msg) {
+    var d = msg && msg.data;
+    if (!d || typeof d.on !== 'boolean') return;
+    soundsOn = d.on;
+    applySoundsState();
+  }
+  function sendControl(on) {
+    if (!controlChannel) return;
+    var p = controlChannel.publish('sounds', { id: Math.random().toString(36).slice(2) + Date.now().toString(36), on: on });
+    if (p && p.catch) p.catch(function () { hostNote.textContent = 'Could not send. Check your connection and try again.'; });
+  }
+  hostToggle.addEventListener('click', function () {
+    var open = hostBody.hidden;
+    hostBody.hidden = !open;
+    hostToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    if (open && hostPanel.hidden) codeIn.focus();
+  });
+  codeForm.addEventListener('submit', function (e) {
+    e.preventDefault();
+    var ok = codeIn.value === HOST_CODE;
+    codeIn.value = '';
+    if (!ok) { codeErr.textContent = 'That code did not work.'; return; }
+    codeErr.textContent = '';
+    codeForm.hidden = true;
+    hostPanel.hidden = false;
+    syncHost();
+  });
+  hostOn.addEventListener('click', function () { sendControl(true); });
+  hostOff.addEventListener('click', function () { sendControl(false); });
+  lockBtn.addEventListener('click', function () {
+    hostPanel.hidden = true;
+    codeForm.hidden = false;
+    hostBody.hidden = true;
+    hostToggle.setAttribute('aria-expanded', 'false');
+  });
+
+  renderPower();
+  applySoundsState();
+  syncHost();
+  tick();
+  connectShared();
+  setInterval(tick, 100);
+})();
+</script>
+</body>
+</html>
