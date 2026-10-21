@@ -287,8 +287,9 @@ body { margin: 0; }
   var ABLY_CHANNEL = 'zulu-chime';
   var CONTROL_CHANNEL = 'zulu-chime-control';
   /* Host code that unlocks the on/off controls. Change it here. */
-  var HOST_CODE = 'imannoyedrn123';
+  var HOST_CODE = 'imannoyed123';
   var soundsOn = true;
+  var lastResetWindow = Math.floor(Date.now() / 43200000);
 
   var STORE_KEY = 'zulu-chime-volume';
   function pad(n) { return (n < 10 ? '0' : '') + n; }
@@ -508,6 +509,14 @@ body { margin: 0; }
   var lastState = '';
   function tick() {
     var now = Date.now();
+    var resetWindow = Math.floor(now / 43200000);
+
+  if (resetWindow !== lastResetWindow) {
+    lastResetWindow = resetWindow;
+    soundsOn = true;
+    sendControl(true);
+    applySoundsState();
+  }
     renderClock(now);
     if (armed && ctx && ctx.state === 'running' && soundsOn) scheduleAhead(now);
     var state = armed ? (ctx ? ctx.state : 'none') : 'off';
